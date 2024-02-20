@@ -18,7 +18,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install nasm
-        run: apt install nasm
+        run: sudo apt install nasm
 
       - name: Check formatting
         run: cargo fmt --check
