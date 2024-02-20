@@ -1,7 +1,7 @@
 FROM rust:alpine AS builder
 LABEL authors="randomairborne"
 
-RUN apk add nasm
+RUN apk add nasm musl-dev
 
 WORKDIR /build/
 COPY . .
