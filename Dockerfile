@@ -1,6 +1,8 @@
 FROM rust:alpine AS builder
 LABEL authors="randomairborne"
 
+RUN apk add nasm
+
 WORKDIR /build/
 COPY . .
 
