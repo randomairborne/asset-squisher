@@ -15,6 +15,7 @@ use image::{
     codecs::{avif::AvifEncoder, jpeg::JpegEncoder, png::PngEncoder},
     ImageError,
 };
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::{DirEntry, Error as WalkDirError, WalkDir};
 use webp::{Encoder as WebPEncoder, WebPEncodingError};
 
@@ -56,7 +57,7 @@ fn main() {
         })
         .collect();
 
-    for item in existing_files {
+    existing_files.into_par_iter().for_each(|item| {
         let path_display = item.path().display().to_string();
         println!("compressing file {path_display}");
         let start = Instant::now();
@@ -66,25 +67,20 @@ fn main() {
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
         println!("compressed {path_display} in {duration:.2} seconds");
-    }
+    });
 }
 
 fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
     let ext = item.path().extension().ok_or(Error::NoExtension)?;
     match ext.as_encoded_bytes() {
-        b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => {
-            image_compress(config, item)?
-        }
+        b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => image_compress(config, item)?,
         b"br" | b"gz" | b"zst" | b"zz" => {}
         _ => generic_compress(config, item)?,
     }
     Ok(())
 }
 
-fn generic_compress(
-    config: Config,
-    item: DirEntry,
-) -> Result<(), Error> {
+fn generic_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let item_path = item.clone().into_path();
     let output_path = config.out_dir.join(item_path.strip_prefix(config.in_dir)?);
     let mut initial = OpenOptions::new().read(true).open(&item_path)?;
@@ -118,10 +114,7 @@ fn generic_compress(
     Ok(())
 }
 
-fn image_compress(
-    config: Config,
-    item: DirEntry,
-) -> Result<(), Error> {
+fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let path = item.path();
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
     let image = image::open(path)?;
@@ -156,10 +149,7 @@ fn create_file(path: impl AsRef<Path>) -> Result<File, IoError> {
 
 fn create_new_extended(path: &Path, ext: impl AsRef<OsStr>) -> Result<File, IoError> {
     let extended = add_extension(path.to_path_buf(), ext);
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(extended)
+    create_file(extended)
 }
 
 pub fn add_extension(path: PathBuf, ext: impl AsRef<OsStr>) -> PathBuf {
@@ -214,7 +204,7 @@ impl<'a> Config<'a> {
             deflate: cfg_int("DEFLATE_LEVEL", 1..=9, DEFAULT_DEFLATE_LEVEL),
             gzip: cfg_int("GZIP_LEVEL", 1..=9, DEFAULT_GZIP_LEVEL),
             in_dir,
-            out_dir
+            out_dir,
         }
     }
 }
