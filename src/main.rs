@@ -37,7 +37,7 @@ fn main() {
         .expect("This command requires at least two arguments!")
         .into();
 
-    let config = Config::default();
+    let config = Config::new(&indir, &outdir);
 
     let existing_files: Vec<DirEntry> = WalkDir::new(indir.clone())
         .into_iter()
@@ -60,7 +60,7 @@ fn main() {
         let path_display = item.path().display().to_string();
         println!("compressing file {path_display}");
         let start = Instant::now();
-        if let Err(e) = process_entry(config, &indir, &outdir, item) {
+        if let Err(e) = process_entry(config.clone(), item) {
             eprintln!("Error processing file {path_display}: {e}",);
         }
         let end = Instant::now();
@@ -69,14 +69,14 @@ fn main() {
     }
 }
 
-fn process_entry(config: Config, indir: &Path, outdir: &Path, item: DirEntry) -> Result<(), Error> {
+fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
     let ext = item.path().extension().ok_or(Error::NoExtension)?;
     match ext.as_encoded_bytes() {
         b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => {
-            image_compress(config, indir, outdir, item)?
+            image_compress(config, item)?
         }
         b"br" | b"gz" | b"zst" | b"zz" => {}
-        _ => generic_compress(config, item, indir, outdir)?,
+        _ => generic_compress(config, item)?,
     }
     Ok(())
 }
@@ -84,11 +84,9 @@ fn process_entry(config: Config, indir: &Path, outdir: &Path, item: DirEntry) ->
 fn generic_compress(
     config: Config,
     item: DirEntry,
-    indir: &Path,
-    outdir: &Path,
 ) -> Result<(), Error> {
     let item_path = item.clone().into_path();
-    let output_path = outdir.join(item_path.strip_prefix(indir)?);
+    let output_path = config.out_dir.join(item_path.strip_prefix(config.in_dir)?);
     let mut initial = OpenOptions::new().read(true).open(&item_path)?;
 
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
@@ -122,12 +120,10 @@ fn generic_compress(
 
 fn image_compress(
     config: Config,
-    indir: &Path,
-    outdir: &Path,
     item: DirEntry,
 ) -> Result<(), Error> {
     let path = item.path();
-    let output_path = outdir.join(path.strip_prefix(indir)?);
+    let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
     let image = image::open(path)?;
 
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
@@ -194,17 +190,19 @@ where
     level
 }
 
-#[derive(Clone, Copy)]
-struct Config {
+#[derive(Clone)]
+struct Config<'a> {
     webp: WebPQualityConfig,
     brotli: u32,
     zstd: i32,
     deflate: u32,
     gzip: u32,
+    in_dir: &'a Path,
+    out_dir: &'a Path,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl<'a> Config<'a> {
+    fn new(in_dir: &'a Path, out_dir: &'a Path) -> Self {
         Self {
             webp: Default::default(),
             zstd: cfg_int(
@@ -215,6 +213,8 @@ impl Default for Config {
             brotli: cfg_int("BROTLI_LEVEL", 1..=11, DEFAULT_BROTLI_LEVEL),
             deflate: cfg_int("DEFLATE_LEVEL", 1..=9, DEFAULT_DEFLATE_LEVEL),
             gzip: cfg_int("GZIP_LEVEL", 1..=9, DEFAULT_GZIP_LEVEL),
+            in_dir,
+            out_dir
         }
     }
 }
