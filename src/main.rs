@@ -19,7 +19,6 @@ use image::{
 use walkdir::{DirEntry, Error as WalkDirError, WalkDir};
 use webp::{Encoder as WebPEncoder, WebPEncodingError};
 
-const DEFAULT_PARALLELISM: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1) };
 const DEFAULT_ZSTD_LEVEL: i32 = 7;
 const DEFAULT_BROTLI_LEVEL: u32 = 5;
 const DEFAULT_GZIP_LEVEL: u32 = 6;
@@ -38,11 +37,8 @@ fn main() {
         .next()
         .expect("This command requires at least two arguments!")
         .into();
-    let config = Config::default();
 
-    let threads = std::thread::available_parallelism()
-        .unwrap_or(DEFAULT_PARALLELISM)
-        .get();
+    let config = Config::default();
 
     let existing_files: Vec<DirEntry> = WalkDir::new(indir.clone())
         .into_iter()
