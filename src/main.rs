@@ -3,7 +3,6 @@ use std::{
     fmt::{Debug, Display},
     fs::{File, OpenOptions},
     io::{Error as IoError, Seek, SeekFrom, Write},
-    num::NonZeroUsize,
     ops::RangeInclusive,
     path::{Path, PathBuf},
     str::FromStr,
