@@ -66,7 +66,7 @@ fn main() {
         println!("compressing file {path_display}");
         let start = Instant::now();
         if let Err(e) = process_entry(config.clone(), item) {
-            eprintln!("Error processing file {path_display}: {e}", );
+            eprintln!("Error processing file {path_display}: {e}",);
         }
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
@@ -193,9 +193,9 @@ pub fn add_extension(path: PathBuf, ext: impl AsRef<OsStr>) -> PathBuf {
 }
 
 fn cfg_int<T>(name: &str, range: RangeInclusive<T>, default: T) -> T
-    where
-        T: FromStr + Display + PartialEq + PartialOrd,
-        T::Err: Debug,
+where
+    T: FromStr + Display + PartialEq + PartialOrd,
+    T::Err: Debug,
 {
     let level: T = std::env::var(name)
         .map(|v| {
