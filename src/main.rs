@@ -13,7 +13,7 @@ use brotli::CompressorReader as BrCompressorReader;
 use flate2::{write::DeflateEncoder, Compression as FlateCompression, GzBuilder};
 use image::{
     codecs::{avif::AvifEncoder, jpeg::JpegEncoder, png::PngEncoder},
-    ImageError,
+    DynamicImage, ImageError,
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::{DirEntry, Error as WalkDirError, WalkDir};
@@ -25,6 +25,10 @@ const DEFAULT_GZIP_LEVEL: u32 = 6;
 const DEFAULT_DEFLATE_LEVEL: u32 = DEFAULT_GZIP_LEVEL;
 
 const DEFAULT_WEBP_COMPRESSION: f32 = 80.0;
+
+const SMALL_IMAGE_PIXELS: u32 = 256;
+const MEDIUM_IMAGE_PIXELS: u32 = 512;
+const LARGE_IMAGE_PIXELS: u32 = 1024;
 
 fn main() {
     let mut args = std::env::args_os();
@@ -62,7 +66,7 @@ fn main() {
         println!("compressing file {path_display}");
         let start = Instant::now();
         if let Err(e) = process_entry(config.clone(), item) {
-            eprintln!("Error processing file {path_display}: {e}",);
+            eprintln!("Error processing file {path_display}: {e}", );
         }
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
@@ -119,8 +123,37 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
     let image = image::open(path)?;
 
+    let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
+    let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
+    let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
+
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
 
+    dynamic_render(&config, image, &output_path)?;
+    dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
+    dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
+    dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
+
+    Ok(())
+}
+
+fn gen_path(path: &Path, extra_text: &str) -> Result<PathBuf, Error> {
+    let old_extension = path.extension().ok_or(Error::NoExtension)?;
+    let old_name = path
+        .with_extension("")
+        .file_name()
+        .ok_or(Error::NoFileName)?
+        .to_owned();
+    let mut new_file_name =
+        OsString::with_capacity(old_name.len() + extra_text.len() + 1 + old_extension.len());
+    new_file_name.push(old_name);
+    new_file_name.push(extra_text);
+    new_file_name.push(".");
+    new_file_name.push(old_extension);
+    Ok(path.with_file_name(new_file_name))
+}
+
+fn dynamic_render(config: &Config, image: DynamicImage, output_path: &Path) -> Result<(), Error> {
     let webp_encoder =
         WebPEncoder::from_image(&image).map_err(|_| Error::UnimplementedWebPImageFormat)?;
     let webp_pixmap = webp_encoder.encode_simple(config.webp.lossless(), config.webp.quality())?;
@@ -160,9 +193,9 @@ pub fn add_extension(path: PathBuf, ext: impl AsRef<OsStr>) -> PathBuf {
 }
 
 fn cfg_int<T>(name: &str, range: RangeInclusive<T>, default: T) -> T
-where
-    T: FromStr + Display + PartialEq + PartialOrd,
-    T::Err: Debug,
+    where
+        T: FromStr + Display + PartialEq + PartialOrd,
+        T::Err: Debug,
 {
     let level: T = std::env::var(name)
         .map(|v| {
@@ -263,6 +296,8 @@ pub enum Error {
     StripPrefixError(#[from] std::path::StripPrefixError),
     #[error("Encountered a file with no extension")]
     NoExtension,
+    #[error("Encountered a file with no name")]
+    NoFileName,
     #[error("WebP does not support some dynamic image types: https://docs.rs/webp/0.2.6/src/webp/encoder.rs.html#29-45")]
     UnimplementedWebPImageFormat,
 }

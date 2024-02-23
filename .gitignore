@@ -6,3 +6,5 @@ Cargo.lock
 
 /public
 /output
+
+.DS_Store
