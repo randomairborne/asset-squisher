@@ -8,6 +8,6 @@ COPY . .
 
 RUN cargo build --release
 
-FROM scratch
+FROM alpine:latest
 
 COPY --from=builder /build/target/release/asset-squisher /usr/bin/asset-squisher
