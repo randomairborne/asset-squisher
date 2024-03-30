@@ -13,7 +13,7 @@ use brotli::CompressorReader as BrCompressorReader;
 use flate2::{write::DeflateEncoder, Compression as FlateCompression, GzBuilder};
 use image::{
     codecs::{avif::AvifEncoder, jpeg::JpegEncoder, png::PngEncoder},
-    DynamicImage, ImageError,
+    DynamicImage, EncodableLayout, ImageError,
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::{DirEntry, Error as WalkDirError, WalkDir};
@@ -154,13 +154,6 @@ fn gen_path(path: &Path, extra_text: &str) -> Result<PathBuf, Error> {
 }
 
 fn dynamic_render(config: &Config, image: DynamicImage, output_path: &Path) -> Result<(), Error> {
-    let webp_encoder =
-        WebPEncoder::from_image(&image).map_err(|_| Error::UnimplementedWebPImageFormat)?;
-    let webp_pixmap = webp_encoder.encode_simple(config.webp.lossless(), config.webp.quality())?;
-    let mut webp_out = create_file(output_path.with_extension("webp"))?;
-    webp_out.write_all(webp_pixmap.as_ref())?;
-    drop(webp_out);
-
     let avif_out = create_file(output_path.with_extension("avif"))?;
     image.write_with_encoder(AvifEncoder::new(avif_out))?;
 
@@ -169,6 +162,17 @@ fn dynamic_render(config: &Config, image: DynamicImage, output_path: &Path) -> R
 
     let png_out = create_file(output_path.with_extension("png"))?;
     image.write_with_encoder(PngEncoder::new(png_out))?;
+
+    let image_rgba = image.into_rgba8();
+    let webp_encoder = WebPEncoder::from_rgba(
+        image_rgba.as_bytes(),
+        image_rgba.width(),
+        image_rgba.height(),
+    );
+    let webp_pixmap = webp_encoder.encode_simple(config.webp.lossless(), config.webp.quality())?;
+    let mut webp_out = create_file(output_path.with_extension("webp"))?;
+    webp_out.write_all(webp_pixmap.as_ref())?;
+    drop(webp_out);
 
     Ok(())
 }

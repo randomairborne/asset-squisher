@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-image = { version = "0.24", features = ["avif"] }
+image = { version = "0.25", features = ["avif"] }
 thiserror = "1"
 walkdir = "2"
 zstd = "0.13"
