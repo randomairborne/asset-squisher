@@ -8,7 +8,7 @@ image = { version = "0.25", features = ["avif"] }
 thiserror = "1"
 walkdir = "2"
 zstd = "0.13"
-brotli = "3"
+brotli = "5"
 flate2 = "1"
 webp = "0.2"
 rayon = "1"
