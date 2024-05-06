@@ -1,7 +1,7 @@
 # asset-squisher
 
-asset-squisher is a Docker container and application to 
-ease the compression of static assets, such as scripts and 
+asset-squisher is a Docker container and application to
+ease the compression of static assets, such as scripts and
 images. It's super easy to use!
 
 ```dockerfile
@@ -11,7 +11,7 @@ COPY /your-app/dist/ /your-app/raw-dist/
 
 RUN asset-squisher /your-app/raw-dist/ /your-app/static/
 
-FROM alpine
+FROM alpine:latest
 
 COPY --from=built /executables/your-app /usr/bin/
 COPY --from=compressor /your-app/static/ /var/www/your-app-static/
@@ -19,7 +19,7 @@ COPY --from=compressor /your-app/static/ /var/www/your-app-static/
 ENTRYPOINT ["/usr/bin/your-app"]
 ```
 
-This example assumes your app will serve static files from 
+This example assumes your app will serve static files from
 `/var/www/your-app-static/`. It will change all image files
 to `png`, `jpeg`, `webp`, and `avif`. Other static formats, such as
 bmp, may not be preserved. Generic files, like JavaScript files,
