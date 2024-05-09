@@ -16,13 +16,13 @@ FROM alpine:latest
 COPY --from=built /executables/your-app /usr/bin/
 COPY --from=compressor /your-app/static/ /var/www/your-app-static/
 
-ENTRYPOINT ["/usr/bin/your-app"]
+CMD ["/usr/bin/your-app"]
 ```
 
 This example assumes your app will serve static files from
 `/var/www/your-app-static/`. It will change all image files
-to `png`, `jpeg`, `webp`, and `avif`. Other static formats, such as
-bmp, may not be preserved. Generic files, like JavaScript files,
+to `png`, `jpeg`, `webp`, and `avif`, as well as copying the
+original image files. Generic files, like JavaScript files,
 are copied into the new directory, along with .br (brotli),
 .gz (gzip), .zz (deflate), and .zst (zstandard) variants which
 are used by some web servers for precompression. For example,
