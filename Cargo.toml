@@ -2,6 +2,7 @@
 name = "asset-squisher"
 version = "0.1.0"
 edition = "2021"
+description = "A simple application to compress all web assits in a static file directory."
 
 [dependencies]
 image = { version = "0.25", features = ["avif"] }
@@ -12,3 +13,4 @@ brotli = "6"
 flate2 = "1"
 webp = "0.3"
 rayon = "1"
+argh = "0.1"
