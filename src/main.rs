@@ -30,21 +30,26 @@ const SMALL_IMAGE_PIXELS: u32 = 256;
 const MEDIUM_IMAGE_PIXELS: u32 = 512;
 const LARGE_IMAGE_PIXELS: u32 = 1024;
 
+#[derive(argh::FromArgs)]
+/// A simple application to compress all web assits in a static file directory.
+struct Arguments {
+    #[argh(positional)]
+    /// input directory.
+    indir: PathBuf,
+    #[argh(positional)]
+    /// input directory.
+    outdir: PathBuf,
+    /// do you wish to supress the creation of separate files for differently sized images
+    #[argh(switch)]
+    no_resize_images: bool,
+}
+
 fn main() {
-    let mut args = std::env::args_os();
-    args.next();
-    let indir: PathBuf = args
-        .next()
-        .expect("This command requires at least two arguments!")
-        .into();
-    let outdir: PathBuf = args
-        .next()
-        .expect("This command requires at least two arguments!")
-        .into();
+    let args: Arguments = argh::from_env();
 
-    let config = Config::new(&indir, &outdir);
+    let config = Config::new(&args.indir, &args.outdir, args.no_resize_images);
 
-    let existing_files: Vec<DirEntry> = WalkDir::new(indir.clone())
+    let existing_files: Vec<DirEntry> = WalkDir::new(args.indir.clone())
         .into_iter()
         .filter_map(|v| match v {
             Ok(v) => {
@@ -123,16 +128,18 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
     let image = image::open(path)?;
 
-    let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
-    let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
-    let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
-
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
 
+    if !config.no_resize_images {
+        let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
+        let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
+        let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
+        dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
+        dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
+        dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
+    }
+
     dynamic_render(&config, image, &output_path)?;
-    dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
-    dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
-    dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
 
     Ok(())
 }
@@ -224,12 +231,13 @@ struct Config<'a> {
     zstd: i32,
     deflate: u32,
     gzip: u32,
+    no_resize_images: bool,
     in_dir: &'a Path,
     out_dir: &'a Path,
 }
 
 impl<'a> Config<'a> {
-    fn new(in_dir: &'a Path, out_dir: &'a Path) -> Self {
+    fn new(in_dir: &'a Path, out_dir: &'a Path, no_resize_images: bool) -> Self {
         Self {
             webp: Default::default(),
             zstd: cfg_int(
@@ -240,6 +248,7 @@ impl<'a> Config<'a> {
             brotli: cfg_int("BROTLI_LEVEL", 1..=11, DEFAULT_BROTLI_LEVEL),
             deflate: cfg_int("DEFLATE_LEVEL", 1..=9, DEFAULT_DEFLATE_LEVEL),
             gzip: cfg_int("GZIP_LEVEL", 1..=9, DEFAULT_GZIP_LEVEL),
+            no_resize_images,
             in_dir,
             out_dir,
         }
