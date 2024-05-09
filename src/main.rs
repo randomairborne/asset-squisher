@@ -44,12 +44,20 @@ struct Arguments {
     /// do you wish to supress the creation of separate files for differently sized images
     #[argh(switch)]
     no_resize_images: bool,
+    /// do you wish to not touch images at all, and copy them as-is?
+    #[argh(switch)]
+    no_compress_images: bool,
 }
 
 fn main() -> ExitCode {
     let args: Arguments = argh::from_env();
 
-    let config = Config::new(&args.indir, &args.outdir, args.no_resize_images);
+    let config = Config::new(
+        &args.indir,
+        &args.outdir,
+        args.no_resize_images,
+        args.no_compress_images,
+    );
     let failed = Arc::new(AtomicBool::new(false));
     let existing_files: Vec<DirEntry> = WalkDir::new(args.indir.clone())
         .into_iter()
@@ -137,22 +145,25 @@ fn generic_compress(config: Config, item: DirEntry) -> Result<(), Error> {
 fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let path = item.path();
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
-    let image = image::open(path)?;
 
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
 
     std::fs::copy(path, &output_path)?;
 
-    if !config.no_resize_images {
-        let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
-        let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
-        let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
-        dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
-        dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
-        dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
-    }
+    if !config.no_compress_images {
+        let image = image::open(path)?;
 
-    dynamic_render(&config, image, &output_path)?;
+        if !config.no_resize_images {
+            let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
+            let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
+            let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
+            dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
+            dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
+            dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
+        }
+
+        dynamic_render(&config, image, &output_path)?;
+    }
 
     Ok(())
 }
@@ -246,12 +257,18 @@ struct Config<'a> {
     deflate: u32,
     gzip: u32,
     no_resize_images: bool,
+    no_compress_images: bool,
     in_dir: &'a Path,
     out_dir: &'a Path,
 }
 
 impl<'a> Config<'a> {
-    fn new(in_dir: &'a Path, out_dir: &'a Path, no_resize_images: bool) -> Self {
+    fn new(
+        in_dir: &'a Path,
+        out_dir: &'a Path,
+        no_resize_images: bool,
+        no_compress_images: bool,
+    ) -> Self {
         Self {
             webp: Default::default(),
             zstd: cfg_int(
@@ -263,6 +280,7 @@ impl<'a> Config<'a> {
             deflate: cfg_int("DEFLATE_LEVEL", 1..=9, DEFAULT_DEFLATE_LEVEL),
             gzip: cfg_int("GZIP_LEVEL", 1..=9, DEFAULT_GZIP_LEVEL),
             no_resize_images,
+            no_compress_images,
             in_dir,
             out_dir,
         }
