@@ -5,7 +5,9 @@ use std::{
     io::{Error as IoError, Seek, SeekFrom, Write},
     ops::RangeInclusive,
     path::{Path, PathBuf},
+    process::ExitCode,
     str::FromStr,
+    sync::{atomic::AtomicBool, Arc},
     time::Instant,
 };
 
@@ -44,11 +46,11 @@ struct Arguments {
     no_resize_images: bool,
 }
 
-fn main() {
+fn main() -> ExitCode {
     let args: Arguments = argh::from_env();
 
     let config = Config::new(&args.indir, &args.outdir, args.no_resize_images);
-
+    let failed = Arc::new(AtomicBool::new(false));
     let existing_files: Vec<DirEntry> = WalkDir::new(args.indir.clone())
         .into_iter()
         .filter_map(|v| match v {
@@ -61,6 +63,7 @@ fn main() {
             }
             Err(e) => {
                 eprintln!("Error finding file: {e}");
+                failed.store(true, std::sync::atomic::Ordering::Release);
                 None
             }
         })
@@ -70,13 +73,21 @@ fn main() {
         let path_display = item.path().display().to_string();
         println!("compressing file {path_display}");
         let start = Instant::now();
-        if let Err(e) = process_entry(config.clone(), item) {
-            eprintln!("Error processing file {path_display}: {e}",);
-        }
+        let processed = process_entry(config.clone(), item);
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
-        println!("compressed {path_display} in {duration:.2} seconds");
+        if let Err(e) = processed {
+            failed.store(true, std::sync::atomic::Ordering::Release);
+            eprintln!("failed to process file {path_display}: {e} (took {duration:.2} seconds)",);
+        } else {
+            println!("compressed {path_display} in {duration:.2} seconds");
+        }
     });
+    if failed.load(std::sync::atomic::Ordering::Acquire) {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
@@ -130,6 +141,8 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
 
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
 
+    std::fs::copy(path, &output_path)?;
+
     if !config.no_resize_images {
         let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
         let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
@@ -165,7 +178,8 @@ fn dynamic_render(config: &Config, image: DynamicImage, output_path: &Path) -> R
     image.write_with_encoder(AvifEncoder::new(avif_out))?;
 
     let jpeg_out = create_file(output_path.with_extension("jpeg"))?;
-    image.write_with_encoder(JpegEncoder::new(jpeg_out))?;
+    let jpeg_quality_dropped_image = image.clone().into_rgb8();
+    jpeg_quality_dropped_image.write_with_encoder(JpegEncoder::new(jpeg_out))?;
 
     let png_out = create_file(output_path.with_extension("png"))?;
     image.write_with_encoder(PngEncoder::new(png_out))?;
