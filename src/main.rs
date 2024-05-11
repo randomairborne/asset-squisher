@@ -148,8 +148,6 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
 
     std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
 
-    std::fs::copy(path, &output_path)?;
-
     if !config.no_compress_images {
         let image = image::open(path)?;
 
@@ -163,6 +161,10 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
         }
 
         dynamic_render(&config, image, &output_path)?;
+    }
+
+    if !output_path.try_exists()? {
+        std::fs::copy(path, &output_path)?;
     }
 
     Ok(())
