@@ -135,7 +135,7 @@ fn generic_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     let mut zz = DeflateEncoder::new(zz_file, FlateCompression::new(config.deflate));
     std::io::copy(&mut initial, &mut zz)?;
     drop(zz);
-    initial.seek(SeekFrom::Start(0))?;
+    drop(initial);
 
     std::fs::copy(item_path, output_path)?;
 
@@ -345,7 +345,7 @@ pub enum Error {
     NoExtension,
     #[error("Encountered a file with no name")]
     NoFileName,
-    #[error("WebP does not support some dynamic image types: https://docs.rs/webp/0.2.6/src/webp/encoder.rs.html#29-45")]
+    #[error("WebP does not support some dynamic image types: https://docs.rs/webp/0.3.0/src/webp/encoder.rs.html#29-45")]
     UnimplementedWebPImageFormat,
 }
 
