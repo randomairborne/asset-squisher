@@ -225,8 +225,10 @@ fn create_new_extended(path: &Path, ext: impl AsRef<OsStr>) -> Result<File, IoEr
 
 pub fn add_extension(path: PathBuf, ext: impl AsRef<OsStr>) -> PathBuf {
     let mut os_string: OsString = path.into();
+    let new_ext = ext.as_ref();
+    os_string.reserve(new_ext.len() + 1);
     os_string.push(".");
-    os_string.push(ext.as_ref());
+    os_string.push(new_ext);
     os_string.into()
 }
 
