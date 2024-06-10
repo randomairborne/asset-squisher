@@ -28,3 +28,6 @@ are copied into the new directory, along with .br (brotli),
 are used by some web servers for precompression. For example,
 if my input included `analytics.js`, files would be created for
 `analytics.js`, `analytics.js.br`, `analytics.js.gz`, and so on.
+
+asset-squisher tends to take a while! If you have a lot of assets, be prepared, and consider disabling encodings you
+don't need.
