@@ -1,13 +1,13 @@
-FROM rust:alpine AS builder
-LABEL authors="randomairborne"
+ARG LLVMTARGETARCH
+FROM --platform=${BUILDPLATFORM} ghcr.io/randomairborne/cross-cargo-${LLVMTARGETARCH}:latest AS server-builder
+ARG LLVMTARGETARCH
 
-RUN apk add nasm musl-dev
-
-WORKDIR /build/
+WORKDIR /build
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --target ${LLVMTARGETARCH}-unknown-linux-musl
 
 FROM alpine:latest
+ARG LLVMTARGETARCH
 
-COPY --from=builder /build/target/release/asset-squisher /usr/bin/asset-squisher
+COPY --from=builder /build/target/${LLVMTARGETARCH}-unknown-linux-musl/release/asset-squisher /usr/bin/asset-squisher
