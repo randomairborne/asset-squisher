@@ -7,7 +7,10 @@ use std::{
     path::{Path, PathBuf},
     process::ExitCode,
     str::FromStr,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Instant,
 };
 
@@ -85,13 +88,13 @@ fn main() -> ExitCode {
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
         if let Err(e) = processed {
-            failed.store(true, std::sync::atomic::Ordering::Release);
+            failed.store(true, Ordering::Release);
             eprintln!("failed to process file {path_display}: {e} (took {duration:.2} seconds)",);
         } else {
             println!("compressed {path_display} in {duration:.2} seconds");
         }
     });
-    if failed.load(std::sync::atomic::Ordering::Acquire) {
+    if failed.load(Ordering::Acquire) {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
