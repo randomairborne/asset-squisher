@@ -1,3 +1,4 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 use std::{
     ffi::{OsStr, OsString},
     fmt::{Debug, Display},
@@ -84,7 +85,7 @@ fn main() -> ExitCode {
         let path_display = item.path().display().to_string();
         println!("compressing file {path_display}");
         let start = Instant::now();
-        let processed = process_entry(config.clone(), item);
+        let processed = process_entry(&config, &item);
         let end = Instant::now();
         let duration = end.duration_since(start).as_secs_f64();
         if let Err(e) = processed {
@@ -101,7 +102,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
+fn process_entry(config: &Config, item: &DirEntry) -> Result<(), Error> {
     if let Some(ext) = item.path().extension() {
         match ext.as_encoded_bytes() {
             b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => image_compress(config, item)?,
@@ -114,12 +115,12 @@ fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
     Ok(())
 }
 
-fn generic_compress(config: Config, item: DirEntry) -> Result<(), Error> {
+fn generic_compress(config: &Config, item: &DirEntry) -> Result<(), Error> {
     let item_path = item.clone().into_path();
     let output_path = config.out_dir.join(item_path.strip_prefix(config.in_dir)?);
     let mut initial = OpenOptions::new().read(true).open(&item_path)?;
 
-    std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
+    std::fs::create_dir_all(output_path.parent().unwrap_or_else(|| output_path.as_ref()))?;
 
     let mut br_file = create_new_extended(&output_path, "br")?;
     let mut br = BrCompressorReader::new(&mut initial, 4096, config.brotli, 20);
@@ -148,11 +149,11 @@ fn generic_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     Ok(())
 }
 
-fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
+fn image_compress(config: &Config, item: &DirEntry) -> Result<(), Error> {
     let path = item.path();
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
 
-    std::fs::create_dir_all(output_path.parent().unwrap_or(output_path.as_ref()))?;
+    std::fs::create_dir_all(output_path.parent().unwrap_or_else(|| output_path.as_ref()))?;
 
     if !config.no_compress_images {
         let image = image::open(path)?;
@@ -162,23 +163,23 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
             let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
             let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
             dynamic_render(
-                &config,
+                config,
                 small_image,
                 &gen_resized_image_path(&output_path, "-small")?,
             )?;
             dynamic_render(
-                &config,
+                config,
                 medium_image,
                 &gen_resized_image_path(&output_path, "-medium")?,
             )?;
             dynamic_render(
-                &config,
+                config,
                 large_image,
                 &gen_resized_image_path(&output_path, "-large")?,
             )?;
         }
 
-        dynamic_render(&config, image, &output_path)?;
+        dynamic_render(config, image, &output_path)?;
     }
 
     if !output_path.try_exists()? {
@@ -196,7 +197,7 @@ fn gen_resized_image_path(path: &Path, extra_text: &str) -> Result<PathBuf, Erro
         .ok_or(Error::NoFileName)?
         .to_owned();
     let mut new_file_name = OsString::with_capacity(
-        old_name.len() + extra_text.len() + 1 + old_extension.map_or(0, |v| v.len()),
+        old_name.len() + extra_text.len() + 1 + old_extension.map_or(0, OsStr::len),
     );
     new_file_name.push(old_name);
     new_file_name.push(extra_text);
@@ -264,13 +265,12 @@ where
                 .unwrap_or_else(|_| panic!("{name} must be a valid integer"))
         })
         .unwrap_or(default);
-    if !range.contains(&level) {
-        panic!(
-            "{name} must be between {} and {}, inclusive.",
-            range.start(),
-            range.end()
-        );
-    }
+    assert!(
+        range.contains(&level),
+        "{name} must be between {} and {}, inclusive.",
+        range.start(),
+        range.end()
+    );
     level
 }
 
@@ -295,7 +295,7 @@ impl<'a> Config<'a> {
         no_compress_images: bool,
     ) -> Self {
         Self {
-            webp: Default::default(),
+            webp: WebPQualityConfig::default(),
             zstd: cfg_int(
                 "ZSTD_LEVEL",
                 zstd::compression_level_range(),
@@ -321,30 +321,31 @@ enum WebPQualityConfig {
 impl Default for WebPQualityConfig {
     fn default() -> Self {
         if std::env::var("WEBP_LOSSLESS").is_ok_and(|v| v != "false" && v != "0") {
-            WebPQualityConfig::Lossless
+            Self::Lossless
         } else if let Ok(requested_quality) = std::env::var("WEBP_QUALITY") {
             let requested_quality: f32 = requested_quality
                 .parse()
                 .expect("WEBP_QUALITY must be a float between 0 and 100, inclusive.");
-            if !(0.0..=100.0).contains(&requested_quality) {
-                panic!("Expected WEBP_QUALITY to be a float between 0 and 100, inclusive.");
-            }
-            WebPQualityConfig::Lossy(requested_quality)
+            assert!(
+                (0.0..=100.0).contains(&requested_quality),
+                "Expected WEBP_QUALITY to be a float between 0 and 100, inclusive."
+            );
+            Self::Lossy(requested_quality)
         } else {
-            WebPQualityConfig::Lossy(DEFAULT_WEBP_COMPRESSION)
+            Self::Lossy(DEFAULT_WEBP_COMPRESSION)
         }
     }
 }
 
 impl WebPQualityConfig {
-    pub fn lossless(&self) -> bool {
+    pub const fn lossless(self) -> bool {
         match self {
             Self::Lossless => true,
             Self::Lossy(_) => false,
         }
     }
 
-    pub fn quality(&self) -> f32 {
+    pub fn quality(self) -> f32 {
         match self {
             Self::Lossless => 75.0,
             Self::Lossy(v) => v.clamp(0.0, 100.0),
