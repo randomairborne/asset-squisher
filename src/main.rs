@@ -102,11 +102,14 @@ fn main() -> ExitCode {
 }
 
 fn process_entry(config: Config, item: DirEntry) -> Result<(), Error> {
-    let ext = item.path().extension().ok_or(Error::NoExtension)?;
-    match ext.as_encoded_bytes() {
-        b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => image_compress(config, item)?,
-        b"br" | b"gz" | b"zst" | b"zz" => {}
-        _ => generic_compress(config, item)?,
+    if let Some(ext) = item.path().extension() {
+        match ext.as_encoded_bytes() {
+            b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => image_compress(config, item)?,
+            b"br" | b"gz" | b"zst" | b"zz" => {}
+            _ => generic_compress(config, item)?,
+        }
+    } else {
+        generic_compress(config, item)?;
     }
     Ok(())
 }
@@ -158,9 +161,21 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
             let small_image = image.thumbnail(SMALL_IMAGE_PIXELS, SMALL_IMAGE_PIXELS);
             let medium_image = image.thumbnail(MEDIUM_IMAGE_PIXELS, MEDIUM_IMAGE_PIXELS);
             let large_image = image.thumbnail(LARGE_IMAGE_PIXELS, LARGE_IMAGE_PIXELS);
-            dynamic_render(&config, small_image, &gen_path(&output_path, "-small")?)?;
-            dynamic_render(&config, medium_image, &gen_path(&output_path, "-medium")?)?;
-            dynamic_render(&config, large_image, &gen_path(&output_path, "-large")?)?;
+            dynamic_render(
+                &config,
+                small_image,
+                &gen_resized_image_path(&output_path, "-small")?,
+            )?;
+            dynamic_render(
+                &config,
+                medium_image,
+                &gen_resized_image_path(&output_path, "-medium")?,
+            )?;
+            dynamic_render(
+                &config,
+                large_image,
+                &gen_resized_image_path(&output_path, "-large")?,
+            )?;
         }
 
         dynamic_render(&config, image, &output_path)?;
@@ -173,19 +188,22 @@ fn image_compress(config: Config, item: DirEntry) -> Result<(), Error> {
     Ok(())
 }
 
-fn gen_path(path: &Path, extra_text: &str) -> Result<PathBuf, Error> {
-    let old_extension = path.extension().ok_or(Error::NoExtension)?;
+fn gen_resized_image_path(path: &Path, extra_text: &str) -> Result<PathBuf, Error> {
+    let old_extension = path.extension();
     let old_name = path
         .with_extension("")
         .file_name()
         .ok_or(Error::NoFileName)?
         .to_owned();
-    let mut new_file_name =
-        OsString::with_capacity(old_name.len() + extra_text.len() + 1 + old_extension.len());
+    let mut new_file_name = OsString::with_capacity(
+        old_name.len() + extra_text.len() + 1 + old_extension.map_or(0, |v| v.len()),
+    );
     new_file_name.push(old_name);
     new_file_name.push(extra_text);
-    new_file_name.push(".");
-    new_file_name.push(old_extension);
+    if let Some(old_extension) = old_extension {
+        new_file_name.push(".");
+        new_file_name.push(old_extension);
+    }
     Ok(path.with_file_name(new_file_name))
 }
 
@@ -346,8 +364,6 @@ pub enum Error {
     WebP(WebPEncodingError),
     #[error("Prefix stripping error")]
     StripPrefixError(#[from] std::path::StripPrefixError),
-    #[error("Encountered a file with no extension")]
-    NoExtension,
     #[error("Encountered a file with no name")]
     NoFileName,
     #[error("WebP does not support some dynamic image types: https://docs.rs/webp/0.3.0/src/webp/encoder.rs.html#29-45")]
