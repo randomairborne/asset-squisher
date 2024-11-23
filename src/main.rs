@@ -56,14 +56,22 @@ struct Arguments {
 fn main() -> ExitCode {
     let args: Arguments = argh::from_env();
 
+    let indir = args
+        .indir
+        .canonicalize()
+        .expect("Failed to canonicalize indir");
+    let outdir = args
+        .outdir
+        .canonicalize()
+        .expect("Failed to canonicalize outdir");
     let config = Config::new(
-        &args.indir,
-        &args.outdir,
+        &indir,
+        &outdir,
         args.no_resize_images,
         args.no_compress_images,
     );
     let failed = Arc::new(AtomicBool::new(false));
-    let existing_files: Vec<PathBuf> = WalkDir::new(args.indir.clone())
+    let existing_files: Vec<PathBuf> = WalkDir::new(args.indir)
         .into_iter()
         .filter_map(|v| match v.map(|v| v.into_path().canonicalize()) {
             Ok(Ok(v)) => {
