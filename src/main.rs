@@ -22,7 +22,7 @@ use image::{
     DynamicImage, EncodableLayout, ImageError,
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use walkdir::{DirEntry, Error as WalkDirError, WalkDir};
+use walkdir::{Error as WalkDirError, WalkDir};
 use webp::{Encoder as WebPEncoder, WebPEncodingError};
 
 const DEFAULT_ZSTD_LEVEL: i32 = 7;
@@ -63,11 +63,11 @@ fn main() -> ExitCode {
         args.no_compress_images,
     );
     let failed = Arc::new(AtomicBool::new(false));
-    let existing_files: Vec<DirEntry> = WalkDir::new(args.indir.clone())
+    let existing_files: Vec<PathBuf> = WalkDir::new(args.indir.clone())
         .into_iter()
-        .filter_map(|v| match v {
-            Ok(v) => {
-                if v.file_type().is_file() {
+        .filter_map(|v| match v.map(|v| v.into_path().canonicalize()) {
+            Ok(Ok(v)) => {
+                if v.is_file() {
                     Some(v)
                 } else {
                     None
@@ -78,11 +78,16 @@ fn main() -> ExitCode {
                 failed.store(true, std::sync::atomic::Ordering::Release);
                 None
             }
+            Ok(Err(e)) => {
+                eprintln!("Error canonicalizing path: {e}");
+                failed.store(true, std::sync::atomic::Ordering::Release);
+                None
+            }
         })
         .collect();
 
     existing_files.into_par_iter().for_each(|item| {
-        let path_display = item.path().display().to_string();
+        let path_display = item.display().to_string();
         println!("compressing file {path_display}");
         let start = Instant::now();
         let processed = process_entry(&config, &item);
@@ -102,8 +107,8 @@ fn main() -> ExitCode {
     }
 }
 
-fn process_entry(config: &Config, item: &DirEntry) -> Result<(), Error> {
-    if let Some(ext) = item.path().extension() {
+fn process_entry(config: &Config, item: &Path) -> Result<(), Error> {
+    if let Some(ext) = item.extension() {
         match ext.as_encoded_bytes() {
             b"png" | b"jpg" | b"jpeg" | b"bmp" | b"avif" | b"webp" => image_compress(config, item)?,
             b"br" | b"gz" | b"zst" | b"zz" => {}
@@ -115,10 +120,9 @@ fn process_entry(config: &Config, item: &DirEntry) -> Result<(), Error> {
     Ok(())
 }
 
-fn generic_compress(config: &Config, item: &DirEntry) -> Result<(), Error> {
-    let item_path = item.clone().into_path();
-    let output_path = config.out_dir.join(item_path.strip_prefix(config.in_dir)?);
-    let mut initial = OpenOptions::new().read(true).open(&item_path)?;
+fn generic_compress(config: &Config, item: &Path) -> Result<(), Error> {
+    let output_path = config.out_dir.join(item.strip_prefix(config.in_dir)?);
+    let mut initial = OpenOptions::new().read(true).open(item)?;
 
     std::fs::create_dir_all(output_path.parent().unwrap_or_else(|| output_path.as_ref()))?;
 
@@ -144,13 +148,12 @@ fn generic_compress(config: &Config, item: &DirEntry) -> Result<(), Error> {
     drop(zz);
     drop(initial);
 
-    std::fs::copy(item_path, output_path)?;
+    std::fs::copy(item, output_path)?;
 
     Ok(())
 }
 
-fn image_compress(config: &Config, item: &DirEntry) -> Result<(), Error> {
-    let path = item.path();
+fn image_compress(config: &Config, path: &Path) -> Result<(), Error> {
     let output_path = config.out_dir.join(path.strip_prefix(config.in_dir)?);
 
     std::fs::create_dir_all(output_path.parent().unwrap_or_else(|| output_path.as_ref()))?;
