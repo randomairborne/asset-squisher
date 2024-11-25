@@ -43,7 +43,7 @@ struct Arguments {
     /// input directory.
     indir: PathBuf,
     #[argh(positional)]
-    /// input directory.
+    /// output directory.
     outdir: PathBuf,
     /// do you wish to supress the creation of separate files for differently sized images
     #[argh(switch)]
@@ -60,6 +60,7 @@ fn main() -> ExitCode {
         .indir
         .canonicalize()
         .expect("Failed to canonicalize indir");
+    std::fs::create_dir_all(&args.outdir).ok();
     let outdir = args
         .outdir
         .canonicalize()
