@@ -357,6 +357,7 @@ impl WebPQualityConfig {
         }
     }
 
+    #[allow(clippy::missing_const_for_fn)]
     pub fn quality(self) -> f32 {
         match self {
             Self::Lossless => 75.0,

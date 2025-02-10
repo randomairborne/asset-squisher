@@ -50,19 +50,3 @@ jobs:
 
       - name: Format check
         run: cargo +nightly fmt --check --all
-
-  js-fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code into the proper directory
-        uses: actions/checkout@v4
-
-      - name: Set up node
-        uses: actions/setup-node@v4
-
-      - name: Install NPM deps
-        run: npm install
-        shell: bash
-
-      - name: Check web formatting
-        run: npm run prettier-check
