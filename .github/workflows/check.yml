@@ -1,27 +1,68 @@
-name: Cargo Check
+name: PR check
 on:
   pull_request:
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  build:
+  cargo-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code into the proper directory
+        uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install NASM
+        run: sudo apt install nasm
+
+      - name: Run tests
+        run: cargo test --all
+
+  rust-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the proper directory
+        uses: actions/checkout@v4
+
+      - name: Install cargo
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          components: rustfmt, clippy
+          components: clippy
 
-      - name: Cache Packages
-        uses: Swatinem/rust-cache@v2
+      - name: Install NASM
+        run: sudo apt install nasm
 
-      - name: Install nasm
-        run: sudo apt-get install nasm
+      - name: Run clippy
+        run: cargo +nightly clippy --all -- -D warnings
 
-      - name: Check formatting
-        run: cargo fmt --check
+  rust-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the proper directory
+        uses: actions/checkout@v4
 
-      - name: Check build
-        run: cargo clippy
+      - name: Install cargo
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: Format check
+        run: cargo +nightly fmt --check --all
+
+  js-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the proper directory
+        uses: actions/checkout@v4
+
+      - name: Set up node
+        uses: actions/setup-node@v4
+
+      - name: Install NPM deps
+        run: npm install
+        shell: bash
+
+      - name: Check web formatting
+        run: npm run prettier-check
