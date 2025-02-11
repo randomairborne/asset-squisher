@@ -332,7 +332,7 @@ enum WebPQualityConfig {
 
 impl Default for WebPQualityConfig {
     fn default() -> Self {
-        if std::env::var("WEBP_LOSSLESS").is_ok_and(|v| v != "false" && v != "0") {
+        if std::env::var("WEBP_LOSSLESS").is_ok_and(|v| !(v.starts_with('f') && v == "0")) {
             Self::Lossless
         } else if let Ok(requested_quality) = std::env::var("WEBP_QUALITY") {
             let requested_quality: f32 = requested_quality
