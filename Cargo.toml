@@ -1,16 +1,21 @@
 [package]
 name = "asset-squisher"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "A simple application to compress all web assits in a static file directory."
 
 [dependencies]
-image = { version = "0.25", features = ["avif"] }
-thiserror = "2"
-walkdir = "2"
+# generic compression
 zstd = "0.13"
 brotli = "7"
 flate2 = "1"
+
+# image compression
+image = { version = "0.25", features = ["avif"] }
 webp = "0.3"
+
+# utilities
+thiserror = "2"
 argh = "0.1"
+walkdir = "2"
 rayon = "1"
