@@ -9,17 +9,17 @@ use std::{
     process::ExitCode,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::Instant,
 };
 
 use brotli::CompressorReader as BrCompressorReader;
-use flate2::{write::DeflateEncoder, Compression as FlateCompression, GzBuilder};
+use flate2::{Compression as FlateCompression, GzBuilder, write::DeflateEncoder};
 use image::{
-    codecs::{avif::AvifEncoder, jpeg::JpegEncoder, png::PngEncoder},
     DynamicImage, EncodableLayout, ImageError,
+    codecs::{avif::AvifEncoder, jpeg::JpegEncoder, png::PngEncoder},
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::{Error as WalkDirError, WalkDir};
@@ -380,7 +380,9 @@ pub enum Error {
     StripPrefixError(#[from] std::path::StripPrefixError),
     #[error("Encountered a file with no name")]
     NoFileName,
-    #[error("WebP does not support some dynamic image types: https://docs.rs/webp/0.3.0/src/webp/encoder.rs.html#29-45")]
+    #[error(
+        "WebP does not support some dynamic image types: https://docs.rs/webp/0.3.0/src/webp/encoder.rs.html#29-45"
+    )]
     UnimplementedWebPImageFormat,
 }
 
