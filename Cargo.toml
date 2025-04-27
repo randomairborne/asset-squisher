@@ -7,7 +7,7 @@ description = "A simple application to compress all web assits in a static file 
 [dependencies]
 # generic compression
 zstd = "0.13"
-brotli = "7"
+brotli = "8"
 flate2 = "1"
 
 # image compression
