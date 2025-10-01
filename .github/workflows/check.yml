@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the proper directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install cargo
         uses: dtolnay/rust-toolchain@nightly
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the proper directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install cargo
         uses: dtolnay/rust-toolchain@nightly
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the proper directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install cargo
         uses: dtolnay/rust-toolchain@nightly
